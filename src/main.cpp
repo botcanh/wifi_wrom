@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESP32Encoder.h>
-
+//only works with RPM < 60
 const char* ssid     = "Tin tin";
 const char* password = "629giaiphong";
 
@@ -10,7 +10,7 @@ WiFiClient client;
 
 #define PWM_CHANNEL 0
 #define PWM_FREQ 1000
-#define PWM_RES 16
+#define PWM_RES 10
 
 const int Pin_IN1 = 18;
 const int Pin_IN2 = 19;
@@ -18,8 +18,10 @@ const int Pin_PWM = 21;
 
 ESP32Encoder encoder;
 
-float Kp = 2.0, Ki = 1.5, Kd = 0.05;
-float setpoint = 150.0, input = 0.0, output = 0.0;
+float Kp = 5.0;
+float Ki = 1.2;
+float Kd = 0.0;
+float setpoint = 0.0, input = 0.0, output = 0.0;
 float error = 0.0, last_error = 0.0, integral = 0.0;
 unsigned long lastTime = 0;
 long lastPosition = 0;
@@ -50,13 +52,22 @@ void setup() {
   server.begin();
   lastTime = millis();
 }
+float feedforward( float rpm){
+  return 0.02096 * rpm * rpm + 0.3603 * rpm + 208.23;
+}
 
 float computePID(float setpoint, float input, float dt) {
   error = setpoint - input;
   integral += error * dt;
   float derivative = (error - last_error) / dt;
   last_error = error;
-  return constrain(Kp * error + Ki * integral + Kd * derivative, -65536, 65536);
+  return constrain(Kp * error + Ki * integral + Kd * derivative, -1024, 1024);
+}
+
+void resetPID() {
+  error = 0.0;
+  last_error = 0.0;
+  integral = 0.0;
 }
 
 void loop() {
@@ -72,6 +83,7 @@ void loop() {
     float sp = msg.toFloat();
     if (sp != 0.0 || msg == "0" || msg == "0.0") {
       setpoint = sp;
+      resetPID();
       Serial.print("Wi-Fi Setpoint: ");
       Serial.println(setpoint);
       client.println("OK: Setpoint = " + String(setpoint));
@@ -113,11 +125,11 @@ void loop() {
       digitalWrite(Pin_IN1, LOW);
       digitalWrite(Pin_IN2, LOW);
     }
-
+    pwmOut += feedforward(setpoint);
     ledcWrite(PWM_CHANNEL, pwmOut);
-
-    Serial.printf("Setpoint: %.2f | RPM: %.2f | Output: %.2f | PWM: %d\n",
-                  setpoint, input, output, pwmOut);
+    // ledcWrite(PWM_CHANNEL, 180);
+    Serial.printf("%.2f,%.2f\n", setpoint, input);  // setpoint, rpm
+    client.printf("%.2f,%.2f\n", setpoint, input);  
 
     lastTime = now;
     lastPosition = currentPosition;
