@@ -10,7 +10,7 @@ WiFiClient client;
 
 #define PWM_CHANNEL 0
 #define PWM_FREQ 1000
-#define PWM_RES 8
+#define PWM_RES 16
 
 const int Pin_IN1 = 18;
 const int Pin_IN2 = 19;
@@ -56,7 +56,7 @@ float computePID(float setpoint, float input, float dt) {
   integral += error * dt;
   float derivative = (error - last_error) / dt;
   last_error = error;
-  return constrain(Kp * error + Ki * integral + Kd * derivative, -255, 255);
+  return constrain(Kp * error + Ki * integral + Kd * derivative, -65536, 65536);
 }
 
 void loop() {
